@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"framed-mqtt-client/controller"
 	"framed-mqtt-client/db"
 	"framed-mqtt-client/model"
@@ -21,16 +22,12 @@ import (
 	"time"
 )
 
-var reqC = make(chan string)
-var resC = make(chan []byte)
-
 var streamLock = sync.Mutex{}
 var streams = make(map[string]map[string]*mjpeg.Stream)
 var deviceLock = sync.Mutex{}
 var devices = make(map[string]bool)
 var frameLock = sync.RWMutex{}
 var currentFrame = make(map[string][]byte)
-var stream = make(map[string][]mjpeg.Stream)
 
 func main() {
 	broker := os.Getenv("MQTT_BROKER")
@@ -39,6 +36,7 @@ func main() {
 	}
 
 	devices["rpi-00000000ece92c87"] = true
+	devices["window-59a3b558-2207-45a3-8535-b61fc6fe454f"] = true
 
 	rawStream := mjpeg.NewStream()
 	rawStream.FrameInterval = 25 * time.Millisecond
@@ -108,7 +106,41 @@ func main() {
 			log.Println("release stream")
 			streams[topic][sessionId] = nil
 		}()
+		s.ServeHTTP(c.Writer, c.Request)
+	})
 
+	r.Handle("GET", "/api/device/:deviceId/recognize/live", func(c *gin.Context) {
+		deviceId := c.Param("deviceId")
+		s := mjpeg.NewStream()
+		go func() {
+			for {
+				select {
+				case <-c.Request.Context().Done():
+					return
+				default:
+					frameLock.Lock()
+					frame := append([]byte{}, currentFrame[deviceId]...)
+					frameLock.Unlock()
+					base64Img := base64.StdEncoding.EncodeToString(frame)
+					response, err := callRPC(base64Img, mqttClient)
+
+					if err != nil {
+						log.Println(err.Error())
+						c.JSON(500, gin.H{"error": err.Error()})
+						return
+					} else if response.Error != nil {
+						log.Println(err.Error())
+						c.JSON(500, gin.H{"error": response.Error.Error()})
+						return
+					} else {
+						for _, f := range response.RecognizedFaces {
+							log.Println(f.Label)
+						}
+						s.UpdateJPEG(frame)
+					}
+				}
+			}
+		}()
 		s.ServeHTTP(c.Writer, c.Request)
 	})
 
@@ -150,7 +182,7 @@ func main() {
 				log.Println("sent request to request topic")
 			}
 
-			dr := <- rspc
+			dr := <-rspc
 			c.JSON(200, gin.H{
 				"image":         base64Img,
 				"detectedFaces": dr.DetectedFaces,
@@ -195,36 +227,18 @@ func main() {
 
 	r.GET("/api/device/:deviceId/recognizeFaces", func(c *gin.Context) {
 		deviceId := c.Param("deviceId")
+		frameLock.Lock()
 		base64Img := base64.StdEncoding.EncodeToString(currentFrame[deviceId])
-
-		if body, err := json.Marshal(&ImageInput{
-			Payload: base64Img,
-		}); err != nil {
-			panic(err)
+		frameLock.Unlock()
+		if resp, err := callRPC(base64Img, mqttClient); err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
 		} else {
-			if req, err := http.NewRequest("POST", "http://192.168.40.137:9999/api/recognizeFaces", bytes.NewBuffer(body));
-				err != nil {
-				panic(err)
-			} else {
-				req.Header.Set("Content-Type", "application/json")
-				client := &http.Client{}
-				resp, err := client.Do(req)
-				if err != nil {
-					panic(err)
-				}
-				defer resp.Body.Close()
-				body, _ := ioutil.ReadAll(resp.Body)
-				var dr RecognizedResponse
-				if err := json.Unmarshal(body, &dr); err != nil {
-					panic(err)
-				} else {
-					c.JSON(200, gin.H{
-						"image":         base64Img,
-						"recognizedFaces": dr.RecognizedFaces,
-					})
-				}
-			}
+			c.JSON(200, gin.H{
+				"image":           base64Img,
+				"recognizedFaces": resp.RecognizedFaces,
+			})
 		}
+
 	})
 
 	controller.LabelController(r.Group("/api"))
@@ -236,7 +250,6 @@ func main() {
 			c.JSON(200, faces)
 		}
 	})
-
 
 	r.Group("/api").GET("/device/:deviceId/reloadSamples", func(c *gin.Context) {
 		device := model.Device{
@@ -254,6 +267,43 @@ func main() {
 
 }
 
+func callRPC(base64Img string, mqttClient mqtt.Client) (*RecognizedResponse, error) {
+	reqId := uuid.New().String()
+	rpcReqPayload, _ := json.Marshal(RecognizeRequest{
+		RequestId: reqId,
+		Payload:   base64Img,
+	})
+	rpcResponse := make(chan RecognizedResponse)
+	rpcRequestTopic := "/3ml/rpc/recognizeFaces/request"
+	rpcResponseTopic := "/3ml/rpc/recognizeFaces/response/" + reqId
+	mqttClient.Subscribe(rpcResponseTopic, 0, func(client mqtt.Client, message mqtt.Message) {
+		resp := RecognizedResponse{}
+		if err := json.Unmarshal(message.Payload(), &resp); err != nil {
+			log.Println("[RPC]", reqId, "fail to unmarshal response")
+			rpcResponse <- RecognizedResponse{
+				Error: err,
+			}
+		} else {
+			log.Println("[RPC]", reqId, "received response")
+			rpcResponse <- resp
+		}
+	}).Wait()
+	start := time.Now()
+	log.Println("[RPC]", reqId, "publishing request to", rpcRequestTopic)
+	mqttClient.Publish(rpcRequestTopic, 0, false, rpcReqPayload).Wait()
+	log.Println("[RPC]", reqId, "request published successfully.")
+	log.Println("[RPC]", reqId, "waiting for response on", rpcResponseTopic)
+	rpcTimeout := time.NewTimer(5 * time.Second)
+	select {
+	case resp := <-rpcResponse:
+		log.Println("[RPC]", reqId, "received response after", time.Since(start))
+		return &resp, nil
+	case <-rpcTimeout.C:
+		log.Println("[RPC]", reqId, "timeout occurred.")
+		return nil, errors.New("timeout")
+	}
+}
+
 type ImageInput struct {
 	Payload string `json:"payload"`
 }
@@ -267,9 +317,13 @@ type DetectResponse struct {
 	DetectedFaces []DetectedFace `json:"detectedFaces"`
 }
 
-
 type DetectRequest struct {
-	Payload string `json:"payload"`
+	Payload   string `json:"payload"`
+	RequestId string `json:"requestId"`
+}
+
+type RecognizeRequest struct {
+	Payload   string `json:"payload"`
 	RequestId string `json:"requestId"`
 }
 
@@ -280,5 +334,6 @@ type RecognizedFace struct {
 }
 
 type RecognizedResponse struct {
-	RecognizedFaces []RecognizedFace`json:"recognizedFaces"`
+	RecognizedFaces []RecognizedFace `json:"recognizedFaces"`
+	Error           error            `json:"error"`
 }
