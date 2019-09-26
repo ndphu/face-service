@@ -1,7 +1,7 @@
 package main
 
 import (
-	"framed-mqtt-client/controller"
+	"face-service/controller"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"time"

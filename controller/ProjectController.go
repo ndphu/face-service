@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"framed-mqtt-client/config"
-	"framed-mqtt-client/db"
-	"framed-mqtt-client/model"
+	"face-service/config"
+	"face-service/db"
+	"face-service/model"
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"

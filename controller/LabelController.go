@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
+	"face-service/db"
+	"face-service/model"
 	"fmt"
-	"framed-mqtt-client/db"
-	"framed-mqtt-client/model"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 )

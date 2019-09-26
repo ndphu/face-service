@@ -2,8 +2,8 @@ package controller
 
 import (
 	"encoding/json"
-	"framed-mqtt-client/db"
-	"framed-mqtt-client/model"
+	"face-service/db"
+	"face-service/model"
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

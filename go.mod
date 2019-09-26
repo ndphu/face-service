@@ -1,4 +1,4 @@
-module framed-mqtt-client
+module face-service
 
 go 1.12
 

@@ -2,7 +2,7 @@ package dao
 
 import (
 	"crypto/tls"
-	"framed-mqtt-client/config"
+	"face-service/config"
 	"github.com/globalsign/mgo"
 	"log"
 	"net"

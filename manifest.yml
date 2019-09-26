@@ -1,8 +1,8 @@
 ---
 applications:
-- name: framed-mqtt-client
+- name: face-service
   memory: 24M
   instances: 1
-  command: framed-mqtt-client
+  command: face-service
   random-route: true
 
