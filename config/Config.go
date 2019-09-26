@@ -38,6 +38,11 @@ func init() {
 	}
 
 	conf.GinDebug = os.Getenv("GIN_DEBUG") == "true"
+
+	conf.MQTTBroker = os.Getenv("MQTT_BROKER")
+	if conf.MQTTBroker == "" {
+		conf.MQTTBroker = "tcp://35.197.155.112:4443"
+	}
 }
 
 func Get() *Config {
