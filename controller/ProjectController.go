@@ -1,14 +1,11 @@
 package controller
 
 import (
-	"face-service/config"
 	"face-service/db"
 	"face-service/model"
-	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 	"github.com/google/uuid"
-	"time"
 )
 
 func ProjectController(r *gin.RouterGroup) {
@@ -112,41 +109,36 @@ func ProjectController(r *gin.RouterGroup) {
 	})
 }
 
-
-func getFrameOutTopic(deviceId string) string {
-	return "/3ml/device/" + deviceId + "/framed/out"
-}
-
-func handleFrame(message mqtt.Message) {
-	streamLock.Lock()
-	for _, s := range streams[message.Topic()] {
-		if s != nil {
-			s.UpdateJPEG(message.Payload())
-		}
-	}
-	streamLock.Unlock()
-	frameLock.Lock()
-	deviceId := topicDeviceRegex.FindStringSubmatch(message.Topic())[1]
-	currentFrame[deviceId] = message.Payload()
-	frameLock.Unlock()
-}
-
-func syncFacesData(deviceId string) error {
-	clientId := uuid.New().String()
-	opts := mqtt.NewClientOptions().AddBroker(config.Get().MQTTBroker).SetClientID(clientId)
-	opts.SetKeepAlive(2 * time.Second)
-	opts.SetPingTimeout(1 * time.Second)
-	opts.SetConnectTimeout(30 * time.Second)
-
-	mqttClient := mqtt.NewClient(opts)
-
-	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
-
-	defer mqttClient.Disconnect(500)
-
-	token := mqttClient.Publish("/3ml/rpc/sync/request", 0, false, "")
-	token.Wait()
-	return token.Error()
-}
+//func handleFrame(message mqtt.Message) {
+//	streamLock.Lock()
+//	for _, s := range streams[message.Topic()] {
+//		if s != nil {
+//			s.UpdateJPEG(message.Payload())
+//		}
+//	}
+//	streamLock.Unlock()
+//	frameLock.Lock()
+//	deviceId := topicDeviceRegex.FindStringSubmatch(message.Topic())[1]
+//	currentFrame[deviceId] = message.Payload()
+//	frameLock.Unlock()
+//}
+//
+//func syncFacesData(deviceId string) error {
+//	clientId := uuid.New().String()
+//	opts := mqtt.NewClientOptions().AddBroker(config.Get().MQTTBroker).SetClientID(clientId)
+//	opts.SetKeepAlive(2 * time.Second)
+//	opts.SetPingTimeout(1 * time.Second)
+//	opts.SetConnectTimeout(30 * time.Second)
+//
+//	mqttClient := mqtt.NewClient(opts)
+//
+//	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
+//		return token.Error()
+//	}
+//
+//	defer mqttClient.Disconnect(500)
+//
+//	token := mqttClient.Publish("/3ml/rpc/sync/request", 0, false, "")
+//	token.Wait()
+//	return token.Error()
+//}

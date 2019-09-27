@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"face-service/db"
 	"face-service/model"
+	"face-service/service"
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
+	"github.com/globalsign/mgo/bson"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"log"
@@ -81,7 +83,21 @@ func serveWebSocket(wsId string) {
 		log.Println("[WS]", "Received message:", wsmsg.Type)
 		switch wsmsg.Type {
 		case "WATCH_PROJECT":
-			log.Println("[WS]", "Connection", wsId, "start watching project", wsmsg.Payload)
+			projectId := wsmsg.Payload
+
+			if count, _ := dao.Collection("project").Find(bson.M{"projectId": projectId}).Count(); count <= 0 {
+				if err := conn.WriteJSON(WSMessage{
+					Code:    200,
+					Type:    "APP_NOTIFICATION_WATCH_PROJECT_FAIL",
+					Payload: "Project not found",
+				}); err != nil {
+					log.Println("[WS]", "Fail to notify watching status", wsId, "error", err.Error())
+				} else {
+					log.Println("[WS]", "Push notification successfully")
+				}
+				break
+			}
+			log.Println("[WS]", "Connection", wsId, "start watching project", projectId)
 			deviceNotifyLock.Lock()
 			if len(deviceNotifyConnMap[wsmsg.Payload]) == 0 {
 				deviceNotifyConnMap[wsmsg.Payload] = make(map[string]bool)
@@ -119,7 +135,7 @@ func monitorNotifications() {
 		panic(err)
 	}
 	clientId := uuid.New().String()
-	ops := GetDefaultOps(clientId)
+	ops := service.GetDefaultOps(clientId)
 	ops.OnConnect = func(c mqtt.Client) {
 		for _, p := range projects {
 			c.Subscribe("/3ml/project/"+p.ProjectId+"/notification", 0, func(client mqtt.Client, message mqtt.Message) {
