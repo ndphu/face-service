@@ -1,11 +1,12 @@
 package controller
 
 import (
+	"face-service/config"
 	"face-service/db"
-	"face-service/service"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 	"github.com/ndphu/swd-commons/model"
+	"github.com/ndphu/swd-commons/service"
 	"strconv"
 )
 
@@ -26,54 +27,9 @@ func DeviceController(r *gin.RouterGroup) {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		} else {
-			service.ServeLiveStream(deviceId, c)
+			service.ServeLiveStream(service.NewClientOpts(config.Get().MQTTBroker), deviceId, c)
 		}
 	})
-
-	//r.GET("/device/:deviceId/recognizeFaces", func(c *gin.Context) {
-	//	deviceId := c.Param("deviceId")
-	//	var device model.Device
-	//	if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId}).One(&device); err != nil {
-	//		c.JSON(500, gin.H{"error": "device not exists"})
-	//		return
-	//	}
-	//
-	//	start := time.Now()
-	//	for {
-	//		frameLock.Lock()
-	//		base64Img := base64.StdEncoding.EncodeToString(currentFrame[deviceId])
-	//		frameLock.Unlock()
-	//		if resp, err := callRPC(device.ProjectId, base64Img); err != nil {
-	//			c.JSON(500, gin.H{"error": err.Error()})
-	//			return
-	//		} else {
-	//			if timeout, err := strconv.Atoi(c.Query("timeout")); err != nil {
-	//				c.JSON(200, gin.H{
-	//					"image":           base64Img,
-	//					"recognizedFaces": resp.RecognizedFaces,
-	//				})
-	//				return
-	//			} else {
-	//				if len(resp.RecognizedFaces) == 0 {
-	//					if int(time.Since(start).Seconds()) < timeout {
-	//						continue
-	//					}
-	//					c.JSON(200, gin.H{
-	//						"image":           base64Img,
-	//						"recognizedFaces": resp.RecognizedFaces,
-	//					})
-	//					return
-	//				} else {
-	//					c.JSON(200, gin.H{
-	//						"image":           base64Img,
-	//						"recognizedFaces": resp.RecognizedFaces,
-	//					})
-	//					return
-	//				}
-	//			}
-	//		}
-	//	}
-	//})
 
 	r.GET("/device/:deviceId/events", func(c *gin.Context) {
 		events := make([]model.Event, 0)
@@ -109,18 +65,19 @@ func DeviceController(r *gin.RouterGroup) {
 			return
 		}
 
-		if frames, err := service.CaptureFrameContinuously(deviceId, frameDelay, totalPics); err != nil {
+		if frames, err := service.CaptureFrameContinuously(service.NewClientOpts(config.Get().MQTTBroker),
+			deviceId, frameDelay, totalPics); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		} else {
-			if response, err := service.CallBulkRecognize(device.ProjectId, frames); err != nil {
+			if response, err := service.CallBulkRecognize(service.NewClientOpts(config.Get().MQTTBroker), device.ProjectId, frames); err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
 			} else {
-				result := make([]RecognizeResponse,0)
+				result := make([]RecognizeResponse, 0)
 				for i, fd := range response.FaceDetailsList {
 					result = append(result, RecognizeResponse{
-						Image: frames[i],
+						Image:           frames[i],
 						FaceDetailsList: fd,
 					})
 				}
@@ -131,6 +88,6 @@ func DeviceController(r *gin.RouterGroup) {
 }
 
 type RecognizeResponse struct {
-	Image []byte `json:"image"`
+	Image           []byte              `json:"image"`
 	FaceDetailsList []model.FaceDetails `json:"faceDetailsList"`
 }

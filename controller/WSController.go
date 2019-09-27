@@ -2,14 +2,15 @@ package controller
 
 import (
 	"encoding/json"
+	"face-service/config"
 	"face-service/db"
-	"face-service/service"
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/ndphu/swd-commons/model"
+	"github.com/ndphu/swd-commons/service"
 	"log"
 	"net/http"
 	"sync"
@@ -134,8 +135,11 @@ func monitorNotifications() {
 	if err := dao.Collection("project").Find(nil).All(&projects); err != nil {
 		panic(err)
 	}
-	clientId := uuid.New().String()
-	ops := service.GetDefaultOps(clientId)
+
+	ops := service.GetDefaultOps()
+	ops.AddBroker(config.Get().MQTTBroker)
+	ops.ClientID = uuid.New().String()
+
 	ops.OnConnect = func(c mqtt.Client) {
 		for _, p := range projects {
 			c.Subscribe("/3ml/project/"+p.ProjectId+"/notification", 0, func(client mqtt.Client, message mqtt.Message) {
