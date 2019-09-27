@@ -2,11 +2,10 @@ package controller
 
 import (
 	"face-service/db"
-	"face-service/model"
 	"face-service/service"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
-	"image"
+	"github.com/ndphu/swd-commons/model"
 	"strconv"
 )
 
@@ -129,42 +128,6 @@ func DeviceController(r *gin.RouterGroup) {
 			}
 		}
 	})
-}
-
-
-type ImageInput struct {
-	Payload string `json:"payload"`
-}
-
-type DetectedFace struct {
-	Rect       image.Rectangle `json:"rect"`
-	Descriptor [128]float32    `json:"descriptor"`
-}
-
-type DetectResponse struct {
-	DetectedFaces []DetectedFace `json:"detectedFaces"`
-}
-
-type DetectRequest struct {
-	Payload   string `json:"payload"`
-	RequestId string `json:"requestId"`
-}
-
-type RecognizeRequest struct {
-	Payload   string `json:"payload"`
-	RequestId string `json:"requestId"`
-}
-
-type RecognizedFace struct {
-	Rect       image.Rectangle `json:"rect"`
-	Label      string          `json:"label"`
-	Classified int             `json:"category"`
-	Descriptor [128]float32    `json:"descriptor"`
-}
-
-type RecognizedResponse struct {
-	RecognizedFaces []RecognizedFace `json:"recognizedFaces"`
-	Error           error            `json:"error"`
 }
 
 type RecognizeResponse struct {

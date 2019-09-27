@@ -2,10 +2,10 @@ package controller
 
 import (
 	"face-service/db"
-	"face-service/model"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 	"github.com/google/uuid"
+	"github.com/ndphu/swd-commons/model"
 )
 
 func ProjectController(r *gin.RouterGroup) {

@@ -3,9 +3,9 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"face-service/model"
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
+	"github.com/ndphu/swd-commons/model"
 	"log"
 	"time"
 )

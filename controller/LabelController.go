@@ -5,10 +5,10 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"face-service/db"
-	"face-service/model"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
+	"github.com/ndphu/swd-commons/model"
 )
 
 func LabelController(r *gin.RouterGroup) {

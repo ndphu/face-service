@@ -10,5 +10,6 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1
 	github.com/hybridgroup/mjpeg v0.0.0-20140228234708-4680f319790e
+	github.com/ndphu/swd-commons v0.0.0-20190927083510-d9b482248c56
 	golang.org/x/net v0.0.0-20190912160710-24e19bdeb0f2 // indirect
 )
