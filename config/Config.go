@@ -41,7 +41,7 @@ func init() {
 
 	conf.MQTTBroker = os.Getenv("MQTT_BROKER")
 	if conf.MQTTBroker == "" {
-		conf.MQTTBroker = "tcp://35.197.155.112:4443"
+		conf.MQTTBroker = "tcp://localhost:1883"
 	}
 }
 
