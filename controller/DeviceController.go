@@ -69,8 +69,7 @@ func DeviceController(r *gin.RouterGroup) {
 			deviceId, frameDelay, totalPics); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
-		} else {
-			if response, err := service.CallBulkRecognize(service.NewClientOpts(config.Get().MQTTBroker), device.ProjectId, frames); err != nil {
+			if response, err := service.CallBulkRecognize(service.NewClientOpts(config.Get().MQTTBroker), device.DeskId, frames); err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
 			} else {
@@ -83,6 +82,7 @@ func DeviceController(r *gin.RouterGroup) {
 				}
 				c.JSON(200, result)
 			}
+		} else {
 		}
 	})
 }

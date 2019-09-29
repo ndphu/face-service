@@ -83,14 +83,14 @@ func serveWebSocket(wsId string) {
 		}
 		log.Println("[WS]", "Received message:", wsmsg.Type)
 		switch wsmsg.Type {
-		case "WATCH_PROJECT":
-			projectId := wsmsg.Payload
+		case "WATCH_DESK":
+			deskId := wsmsg.Payload
 
-			if count, _ := dao.Collection("project").Find(bson.M{"projectId": projectId}).Count(); count <= 0 {
+			if count, _ := dao.Collection("desk").Find(bson.M{"deskId": deskId}).Count(); count <= 0 {
 				if err := conn.WriteJSON(WSMessage{
 					Code:    200,
-					Type:    "APP_NOTIFICATION_WATCH_PROJECT_FAIL",
-					Payload: "Project not found",
+					Type:    "APP_NOTIFICATION_WATCH_DESK_FAIL",
+					Payload: "Desk not found",
 				}); err != nil {
 					log.Println("[WS]", "Fail to notify watching status", wsId, "error", err.Error())
 				} else {
@@ -98,7 +98,7 @@ func serveWebSocket(wsId string) {
 				}
 				break
 			}
-			log.Println("[WS]", "Connection", wsId, "start watching project", projectId)
+			log.Println("[WS]", "Connection", wsId, "start watching desk", deskId)
 			deviceNotifyLock.Lock()
 			if len(deviceNotifyConnMap[wsmsg.Payload]) == 0 {
 				deviceNotifyConnMap[wsmsg.Payload] = make(map[string]bool)
@@ -107,8 +107,8 @@ func serveWebSocket(wsId string) {
 			deviceNotifyLock.Unlock()
 			if err := conn.WriteJSON(WSMessage{
 				Code:    200,
-				Type:    "APP_NOTIFICATION_WATCH_PROJECT_SUCCESS",
-				Payload: "You will receive notification on this project",
+				Type:    "APP_NOTIFICATION_WATCH_DESK_SUCCESS",
+				Payload: "You will receive notification on this desk",
 			}); err != nil {
 				log.Println("[WS]", "Fail to notify watching status", wsId, "error", err.Error())
 			} else {
@@ -116,8 +116,8 @@ func serveWebSocket(wsId string) {
 			}
 			break
 
-		case "UNWATCH_PROJECT":
-			log.Println("[WS]", "Connection", wsId, "stop watching project", wsmsg.Payload)
+		case "UNWATCH_DESK":
+			log.Println("[WS]", "Connection", wsId, "stop watching desk", wsmsg.Payload)
 			deviceNotifyLock.Lock()
 			if len(deviceNotifyConnMap[wsmsg.Payload]) == 0 {
 				deviceNotifyConnMap[wsmsg.Payload] = make(map[string]bool)
@@ -131,8 +131,8 @@ func serveWebSocket(wsId string) {
 }
 
 func monitorNotifications() {
-	projects := make([]model.Project, 0)
-	if err := dao.Collection("project").Find(nil).All(&projects); err != nil {
+	desks := make([]model.Desk, 0)
+	if err := dao.Collection("desk").Find(nil).All(&desks); err != nil {
 		panic(err)
 	}
 
@@ -141,17 +141,17 @@ func monitorNotifications() {
 	ops.ClientID = uuid.New().String()
 
 	ops.OnConnect = func(c mqtt.Client) {
-		for _, p := range projects {
-			c.Subscribe("/3ml/project/"+p.ProjectId+"/notification", 0, func(client mqtt.Client, message mqtt.Message) {
+		for _, p := range desks {
+			c.Subscribe("/3ml/desk/"+p.DeskId+"/notification", 0, func(client mqtt.Client, message mqtt.Message) {
 				log.Println("[WS]", "Notification received")
 				var nf model.Notification
 				if err := json.Unmarshal(message.Payload(), &nf); err != nil {
 					log.Println("[WS]", "Fail to unmarshall notification", string(message.Payload()))
 					return
 				}
-				log.Println("[WS]", "Pushing notification for project", nf.ProjectId)
-				log.Println("[WS]", "Number for subscriber", len(deviceNotifyConnMap[nf.ProjectId]))
-				for wsId := range deviceNotifyConnMap[nf.ProjectId] {
+				log.Println("[WS]", "Pushing notification for desk", nf.DeskId)
+				log.Println("[WS]", "Number for subscriber", len(deviceNotifyConnMap[nf.DeskId]))
+				for wsId := range deviceNotifyConnMap[nf.DeskId] {
 					wsLock.Lock()
 					conn, exists := wsMap[wsId]
 					wsLock.Unlock()
@@ -164,7 +164,7 @@ func monitorNotifications() {
 						Type:    "APP_NOTIFICATION_REMIND",
 						Payload: "You are sitting for too long. To protect you health, please consider to take a break for better health.",
 					}); err != nil {
-						log.Println("[WS]", "Fail to send notification of project", nf.ProjectId, "and connection", wsId, "error", err.Error())
+						log.Println("[WS]", "Fail to send notification of desk", nf.DeskId, "and connection", wsId, "error", err.Error())
 					} else {
 						log.Println("[WS]", "Push notification successfully")
 					}

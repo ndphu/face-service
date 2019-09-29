@@ -12,15 +12,6 @@ import (
 )
 
 func LabelController(r *gin.RouterGroup) {
-	r.GET("/labels", func(c *gin.Context) {
-		labels := make([]model.Label, 0)
-		if err := dao.Collection("label").Find(nil).All(&labels); err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(200, labels)
-		}
-	})
-
 	r.POST("/labels", func(c *gin.Context) {
 		faces := make([]model.Face, 0)
 		if err := c.ShouldBindJSON(&faces); err != nil {

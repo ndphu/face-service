@@ -1,6 +1,7 @@
 package main
 
 import (
+	"face-service/auth"
 	"face-service/controller"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -21,11 +22,15 @@ func main() {
 	}))
 
 	apiGroup := r.Group("/api")
+	apiGroup.Use(auth.FirebaseAuthMiddleware())
 
 	controller.LabelController(apiGroup)
-	controller.ProjectController(apiGroup)
+	controller.DeskController(apiGroup)
 	controller.DeviceController(apiGroup)
 	controller.WSController(apiGroup)
+
+	authGroup := r.Group("/api/auth")
+	controller.AuthController(authGroup)
 
 	r.Run()
 }
