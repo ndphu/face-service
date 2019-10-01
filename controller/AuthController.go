@@ -35,7 +35,7 @@ func AuthController(r *gin.RouterGroup) {
 			return
 		}
 		if user, err := authService.CreateUserWithEmail(ri.UserEmail, ri.Password, ri.DisplayName); err != nil {
-			c.JSON(500, gin.H{"error": "fail to create user with email:" + err.Error()})
+			c.JSON(500, gin.H{"error": "Fail to create user with email. Error: " + err.Error()})
 			return
 		} else {
 			c.JSON(200, gin.H{"user": user})

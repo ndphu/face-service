@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"face-service/db"
 	"firebase.google.com/go"
 	"firebase.google.com/go/auth"
@@ -10,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 	"github.com/google/uuid"
+	"github.com/ndphu/swd-commons/model"
+	"github.com/ndphu/swd-commons/slack"
 	"google.golang.org/api/option"
 	"log"
 	"os"
@@ -72,12 +75,19 @@ func (s *AuthService) GetUserFromToken(jwtToken string) (*User, error) {
 			Roles: roles,
 		}, nil
 	} else {
-		log.Println("fail to parse token")
+		log.Println("[FIREBASE]", "Fail to parse token")
 		return nil, err
 	}
 }
 
 func (s *AuthService) CreateUserWithEmail(email string, password string, displayName string) (*User, error) {
+	if c, err := dao.Collection("user").Find(bson.M{"email": email}).Count(); err != nil {
+		log.Println("[DB]", "Fail to check user email exists")
+		return nil, err
+	} else if c > 0 {
+		log.Println("[FIREBASE]", "User email", email, "is already existed")
+		return nil, errors.New("USER_EMAIL_ALREADY_USED")
+	}
 	params := (&auth.UserToCreate{}).
 		Email(email).
 		EmailVerified(false).
@@ -92,14 +102,13 @@ func (s *AuthService) CreateUserWithEmail(email string, password string, display
 
 	u, err := client.CreateUser(context.Background(), params)
 	if err != nil {
-		log.Printf("error creating user: %v\n", err)
+		log.Println("[FIREBASE]", "Error creating user:", err)
 		return nil, err
 	}
 
-	log.Printf("successfully created user: %s\n", u.Email)
+	log.Println("[FIREBASE]", "Successfully created user: ", u.Email)
 
-	client.EmailVerificationLink(context.Background(), u.Email)
-
+	//TODO: transaction here
 	user := User{
 		Id:          bson.NewObjectId(),
 		DisplayName: displayName,
@@ -107,14 +116,56 @@ func (s *AuthService) CreateUserWithEmail(email string, password string, display
 		Roles:       []string{"user"},
 	}
 	err = dao.Collection("user").Insert(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	sendSlackNotification(&user)
+
 	return &user, err
+}
+
+func sendSlackNotification(u *User) {
+	log.Println("[SLACK]", "Sending slack invitation for user", u.Email)
+	sc := model.SlackConfig{
+		Id:             bson.NewObjectId(),
+		UserId:         u.Id,
+		SentInvitation: false,
+	}
+
+	if err := dao.Collection("slack_config").Insert(&sc); err != nil {
+		log.Println("[DB]", "Fail to insert slack_config for user:", u.Email)
+	} else {
+		if err := slack.SendSlackInvitation(u.Email); err != nil {
+			if err.Error() == "ALREADY_IN_TEAM_INVITED_USER" || err.Error() == "ALREADY_IN_TEAM" {
+				// user invited, just lookup the user
+				log.Println("[SLACK]", "User already in Slack Org, looking up existing User")
+				if slackUser, err := slack.LookupUserIdByEmail(u.Email); err != nil {
+					//TODO: handle error here
+					log.Println("[SLACK]", "Fail to lookup user by email:", u.Email, "by error", err.Error())
+				} else {
+					sc.SlackUserId = slackUser.Id
+					if dao.Collection("slack_config").UpdateId(sc.Id, &sc); err != nil {
+						log.Println("[DB]", "Fail to update slack_config for user:", u.Email)
+					} else {
+						log.Println("[DB]", "Linked user:", u.Email, "with Slack user id", sc.SlackUserId)
+					}
+				}
+			} else {
+				sc.SentInvitation = true
+				if err := dao.Collection("slack_config").UpdateId(sc.Id, &sc); err != nil {
+					log.Println("[DB]", "Fail to update slack_config to set email sent to true for user:", u.Email)
+				}
+			}
+		}
+	}
 }
 
 func (s *AuthService) LoginWithFirebaseToken(firebaseToken string) (*User, string, error) {
 	client, err := s.App.Auth(context.Background())
 	token, err := client.VerifyIDToken(context.Background(), firebaseToken)
 	if err != nil {
-		log.Println("fail to parse token")
+		log.Println("[FIREBASE]", "Fail to parse token")
 		return nil, "", err
 	}
 	user := User{}

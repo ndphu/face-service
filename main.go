@@ -28,6 +28,7 @@ func main() {
 	controller.DeskController(apiGroup)
 	controller.DeviceController(apiGroup)
 	controller.WSController(apiGroup)
+	controller.NotificationController(apiGroup.Group("/notification"))
 
 	authGroup := r.Group("/api/auth")
 	controller.AuthController(authGroup)
