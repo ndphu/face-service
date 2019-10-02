@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"face-service/auth"
 	"face-service/config"
 	"face-service/db"
 	"github.com/gin-gonic/gin"
@@ -45,6 +46,7 @@ func DeviceController(r *gin.RouterGroup) {
 	})
 
 	r.GET("/device/:deviceId/startRecognize", func(c *gin.Context) {
+		user := auth.CurrentUser(c)
 		deviceId := c.Param("deviceId")
 		totalPics := 12
 		if c.Query("totalPics") != "" {
@@ -60,16 +62,16 @@ func DeviceController(r *gin.RouterGroup) {
 		}
 
 		var device model.Device
-		if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId}).One(&device); err != nil {
+		if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId, "owner": user.Id}).One(&device); err != nil {
 			c.JSON(500, gin.H{"error": "device not exists"})
 			return
 		}
 
-		if frames, err := service.CaptureFrameContinuously(service.NewClientOpts(config.Get().MQTTBroker),
-			deviceId, frameDelay, totalPics); err != nil {
+		if frames, err := service.CaptureFrameContinuously(service.NewClientOpts(config.Get().MQTTBroker), deviceId, frameDelay, totalPics); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
-			if response, err := service.CallBulkRecognize(service.NewClientOpts(config.Get().MQTTBroker), device.DeskId, frames); err != nil {
+		} else {
+			if response, err := service.CallBulkRecognize(service.NewClientOpts(config.Get().MQTTBroker), device.DeskId, frames, auth.CurrentJWT(c)); err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
 			} else {
@@ -82,7 +84,6 @@ func DeviceController(r *gin.RouterGroup) {
 				}
 				c.JSON(200, result)
 			}
-		} else {
 		}
 	})
 }

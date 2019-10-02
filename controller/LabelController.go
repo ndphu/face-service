@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
+	"face-service/auth"
 	"face-service/db"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -13,6 +14,7 @@ import (
 
 func LabelController(r *gin.RouterGroup) {
 	r.POST("/labels", func(c *gin.Context) {
+		u := auth.CurrentUser(c)
 		faces := make([]model.Face, 0)
 		if err := c.ShouldBindJSON(&faces); err != nil {
 			c.JSON(400, gin.H{"error": err.Error()})
@@ -20,6 +22,7 @@ func LabelController(r *gin.RouterGroup) {
 			if len(faces) > 0 {
 				for _, face := range faces {
 					face.Id = bson.NewObjectId()
+					face.UserId = u.Id
 					var buf bytes.Buffer
 					if err := binary.Write(&buf, binary.LittleEndian, face.Descriptor); err != nil {
 						panic(err)

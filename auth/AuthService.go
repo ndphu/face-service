@@ -54,6 +54,15 @@ func CurrentUser(c *gin.Context) *User {
 	return user
 }
 
+func CurrentJWT(c *gin.Context) string {
+	val, exist := c.Get("jwtToken")
+	if !exist {
+		return ""
+	}
+
+	return val.(string)
+}
+
 func (s *AuthService) getAuthClient() (*auth.Client, error) {
 	return s.App.Auth(context.Background())
 }
