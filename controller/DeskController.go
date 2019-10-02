@@ -3,6 +3,7 @@ package controller
 import (
 	"face-service/auth"
 	"face-service/db"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ func DeskController(r *gin.RouterGroup) {
 		var desk model.Desk
 		if err := dao.Collection("desk").Find(bson.M{
 			"deskId": c.Param("deskId"),
-			"owner": auth.CurrentUser(c).Id,
+			"owner":  auth.CurrentUser(c).Id,
 		}).One(&desk); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 		} else {
@@ -56,7 +57,7 @@ func DeskController(r *gin.RouterGroup) {
 		var faces []model.Face
 		if err := dao.Collection("face").Find(bson.M{
 			"deskId": c.Param("deskId"),
-			"owner": auth.CurrentUser(c).Id,
+			"owner":  auth.CurrentUser(c).Id,
 		}).All(&faces); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 		} else {
@@ -68,7 +69,7 @@ func DeskController(r *gin.RouterGroup) {
 		var devices []model.Device
 		if err := dao.Collection("device").Find(bson.M{
 			"deskId": c.Param("deskId"),
-			"owner": auth.CurrentUser(c).Id,
+			"owner":  auth.CurrentUser(c).Id,
 		}).All(&devices); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 		} else {
@@ -110,10 +111,34 @@ func DeskController(r *gin.RouterGroup) {
 		if err := c.ShouldBindJSON(&rule); err != nil {
 			c.JSON(400, gin.H{"error": err.Error()})
 		} else {
+			if rule.DeviceId == "" {
+				c.JSON(400, gin.H{"error": "missing device id"})
+				return
+			}
+			if rule.Action.Type == "" {
+				c.JSON(400, gin.H{"error": "missing notification type"})
+				return
+			}
+			if rule.Interval <= 0 {
+				c.JSON(400, gin.H{"error": fmt.Sprintf("invalid interval value: %d", rule.Interval)})
+				return
+			}
 			rule.Id = bson.NewObjectId()
 			rule.DeskId = c.Param("deskId")
-
 			if err := dao.Collection("rule").Insert(&rule); err != nil {
+				c.JSON(500, gin.H{"error": err})
+			} else {
+				c.JSON(201, rule)
+			}
+		}
+	})
+
+	r.POST("/rule/:ruleId", func(c *gin.Context) {
+		var rule model.Rule
+		if err := c.ShouldBindJSON(&rule); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+		} else {
+			if err := dao.Collection("rule").UpdateId(bson.ObjectIdHex(c.Param("ruleId")), &rule); err != nil {
 				c.JSON(500, gin.H{"error": err})
 			} else {
 				c.JSON(201, rule)
