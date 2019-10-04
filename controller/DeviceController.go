@@ -71,7 +71,11 @@ func DeviceController(r *gin.RouterGroup) {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		} else {
-			if response, err := service.CallBulkRecognize(service.NewClientOpts(config.Get().MQTTBroker), device.DeskId, frames, auth.CurrentJWT(c)); err != nil {
+			if response, err := service.CallRecognizeWithRequest(service.NewClientOpts(config.Get().MQTTBroker), model.RecognizeRequest{
+				IncludeFacesDetails: true,
+				Images:              frames,
+				TimeoutSeconds:      30,
+			}); err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
 			} else {
