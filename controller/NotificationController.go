@@ -72,7 +72,7 @@ func NotificationController(r *gin.RouterGroup) {
 					}
 				}
 			}
-			if err := slack.SendMessageToUser(sc.SlackUserId, "This is a test notification."); err != nil {
+			if err := slack.SendSimpleTextMessageToUser(sc.SlackUserId, "This is a test notification."); err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 			} else {
 				c.JSON(200, gin.H{})

@@ -3,11 +3,11 @@ package controller
 import (
 	"face-service/auth"
 	"face-service/db"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
 	"github.com/google/uuid"
 	"github.com/ndphu/swd-commons/model"
+	"log"
 )
 
 func DeskController(r *gin.RouterGroup) {
@@ -35,8 +35,16 @@ func DeskController(r *gin.RouterGroup) {
 			desk.Owner = user.Id
 			if err := dao.Collection("desk").Insert(&desk); err != nil {
 				c.JSON(500, gin.H{"error": err})
+				return
 			} else {
+				// notification rule
+				if err := createDefaultRules(&desk); err != nil {
+					log.Println("Fail to crate new desk by error:", err.Error())
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
 				c.JSON(201, desk)
+
 			}
 		}
 	})
@@ -105,33 +113,33 @@ func DeskController(r *gin.RouterGroup) {
 			c.JSON(200, rules)
 		}
 	})
-
-	r.POST("/desk/:deskId/rules", func(c *gin.Context) {
-		var rule model.Rule
-		if err := c.ShouldBindJSON(&rule); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
-		} else {
-			if rule.DeviceId == "" {
-				c.JSON(400, gin.H{"error": "missing device id"})
-				return
-			}
-			if rule.Action.Type == "" {
-				c.JSON(400, gin.H{"error": "missing notification type"})
-				return
-			}
-			if rule.Interval <= 0 {
-				c.JSON(400, gin.H{"error": fmt.Sprintf("invalid interval value: %d", rule.Interval)})
-				return
-			}
-			rule.Id = bson.NewObjectId()
-			rule.DeskId = c.Param("deskId")
-			if err := dao.Collection("rule").Insert(&rule); err != nil {
-				c.JSON(500, gin.H{"error": err})
-			} else {
-				c.JSON(201, rule)
-			}
-		}
-	})
+	//
+	//r.POST("/desk/:deskId/rules", func(c *gin.Context) {
+	//	var rule model.Rule
+	//	if err := c.ShouldBindJSON(&rule); err != nil {
+	//		c.JSON(400, gin.H{"error": err.Error()})
+	//	} else {
+	//		if rule.DeviceId == "" {
+	//			c.JSON(400, gin.H{"error": "missing device id"})
+	//			return
+	//		}
+	//		if rule.Action.Type == "" {
+	//			c.JSON(400, gin.H{"error": "missing notification type"})
+	//			return
+	//		}
+	//		if rule.Interval <= 0 {
+	//			c.JSON(400, gin.H{"error": fmt.Sprintf("invalid interval value: %d", rule.Interval)})
+	//			return
+	//		}
+	//		rule.Id = bson.NewObjectId()
+	//		rule.DeskId = c.Param("deskId")
+	//		if err := dao.Collection("rule").Insert(&rule); err != nil {
+	//			c.JSON(500, gin.H{"error": err})
+	//		} else {
+	//			c.JSON(201, rule)
+	//		}
+	//	}
+	//})
 
 	r.POST("/rule/:ruleId", func(c *gin.Context) {
 		var rule model.Rule
@@ -139,10 +147,27 @@ func DeskController(r *gin.RouterGroup) {
 			c.JSON(400, gin.H{"error": err.Error()})
 		} else {
 			if err := dao.Collection("rule").UpdateId(bson.ObjectIdHex(c.Param("ruleId")), &rule); err != nil {
+				log.Println("Fail to update rule:", c.Param("ruleId"), "by error:", err.Error())
 				c.JSON(500, gin.H{"error": err})
 			} else {
 				c.JSON(201, rule)
 			}
 		}
 	})
+}
+func createDefaultRules(desk *model.Desk) error {
+	return dao.Collection("rule").Insert(model.Rule{
+		Id:              bson.NewObjectId(),
+		DeskId:          desk.DeskId,
+		IntervalMinutes: model.DefaultSittingRemindInterval,
+		Type:            model.RuleTypeSittingMonitoring,
+		UserId:          desk.Owner,
+	}, model.Rule{
+		Id:              bson.NewObjectId(),
+		DeskId:          desk.DeskId,
+		IntervalMinutes: model.DefaultDrinkRemindInterval,
+		Type:            model.RuleTypeDrinkWaterReminder,
+		UserId:          desk.Owner,
+	})
+
 }
