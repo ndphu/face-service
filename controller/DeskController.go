@@ -113,33 +113,6 @@ func DeskController(r *gin.RouterGroup) {
 			c.JSON(200, rules)
 		}
 	})
-	//
-	//r.POST("/desk/:deskId/rules", func(c *gin.Context) {
-	//	var rule model.Rule
-	//	if err := c.ShouldBindJSON(&rule); err != nil {
-	//		c.JSON(400, gin.H{"error": err.Error()})
-	//	} else {
-	//		if rule.DeviceId == "" {
-	//			c.JSON(400, gin.H{"error": "missing device id"})
-	//			return
-	//		}
-	//		if rule.Action.Type == "" {
-	//			c.JSON(400, gin.H{"error": "missing notification type"})
-	//			return
-	//		}
-	//		if rule.Interval <= 0 {
-	//			c.JSON(400, gin.H{"error": fmt.Sprintf("invalid interval value: %d", rule.Interval)})
-	//			return
-	//		}
-	//		rule.Id = bson.NewObjectId()
-	//		rule.DeskId = c.Param("deskId")
-	//		if err := dao.Collection("rule").Insert(&rule); err != nil {
-	//			c.JSON(500, gin.H{"error": err})
-	//		} else {
-	//			c.JSON(201, rule)
-	//		}
-	//	}
-	//})
 
 	r.POST("/rule/:ruleId", func(c *gin.Context) {
 		var rule model.Rule

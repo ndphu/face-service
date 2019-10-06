@@ -24,31 +24,32 @@ func NotificationController(r *gin.RouterGroup) {
 	r.GET("/sendSlackInvitation", func(c *gin.Context) {
 		user := auth.CurrentUser(c)
 		log.Println("[SLACK]", "Requesting Slack invitation for user", user.Email)
-		err := slack.SendSlackInvitation(user.Email)
-		switch err.Error() {
-		case "ALREADY_IN_TEAM":
-			log.Println("[SLACK]", "User with email", user.Email, "is already in Slack team. Linking user email and Slack user")
-			if slackUser, err := slack.LookupUserIdByEmail(user.Email); err != nil {
-				log.Println("[SLACK]", "Fail to lookup user by email:", user.Email, "by error", err.Error())
+		if err := slack.SendSlackInvitation(user.Email); err != nil {
+			switch err.Error() {
+			case "ALREADY_IN_TEAM":
+				log.Println("[SLACK]", "User with email", user.Email, "is already in Slack team. Linking user email and Slack user")
+				if slackUser, err := slack.LookupUserIdByEmail(user.Email); err != nil {
+					log.Println("[SLACK]", "Fail to lookup user by email:", user.Email, "by error", err.Error())
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				} else {
+					if dao.Collection("slack_config").Update(bson.M{"userId": user.Id},bson.M{"$set": bson.M{"slackUserId": slackUser.Id}}); err != nil {
+						log.Println("[DB]", "Fail to update slack_config for user:", user.Email)
+						c.JSON(500, gin.H{"error": err.Error()})
+					} else {
+						log.Println("[DB]", "Linked user:", user.Email, "with Slack user id", slackUser.Id)
+						c.JSON(200, gin.H{"error": ""})
+					}
+				}
+				break
+			case "ALREADY_IN_TEAM_INVITED_USER":
+				c.JSON(500, gin.H{"error": "Email already sent"})
+				return
+			default:
+				log.Println("[SLACK]", "Fail to send user email invitation", err.Error())
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
-			} else {
-				if dao.Collection("slack_config").Update(bson.M{"userId": user.Id},bson.M{"$set": bson.M{"slackUserId": slackUser.Id}}); err != nil {
-					log.Println("[DB]", "Fail to update slack_config for user:", user.Email)
-					c.JSON(500, gin.H{"error": err.Error()})
-				} else {
-					log.Println("[DB]", "Linked user:", user.Email, "with Slack user id", slackUser.Id)
-					c.JSON(200, gin.H{"error": ""})
-				}
 			}
-			break
-		case "ALREADY_IN_TEAM_INVITED_USER":
-			c.JSON(500, gin.H{"error": "Email already sent"})
-			return
-		default:
-			log.Println("[SLACK]", "Fail to send user email invitation", err.Error())
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
 		}
 	})
 
