@@ -33,7 +33,7 @@ func NotificationController(r *gin.RouterGroup) {
 					c.JSON(500, gin.H{"error": err.Error()})
 					return
 				} else {
-					if dao.Collection("slack_config").Update(bson.M{"userId": user.Id},bson.M{"$set": bson.M{"slackUserId": slackUser.Id}}); err != nil {
+					if dao.Collection("slack_config").Update(bson.M{"userId": user.Id}, bson.M{"$set": bson.M{"slackUserId": slackUser.Id}}); err != nil {
 						log.Println("[DB]", "Fail to update slack_config for user:", user.Email)
 						c.JSON(500, gin.H{"error": err.Error()})
 					} else {
@@ -49,6 +49,12 @@ func NotificationController(r *gin.RouterGroup) {
 				log.Println("[SLACK]", "Fail to send user email invitation", err.Error())
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
+			}
+		} else {
+			if dao.Collection("slack_config").Update(bson.M{"userId": user.Id}, bson.M{"$set": bson.M{"sendInvitation": true}}); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(200, gin.H{"message": "Sent invitation to user successfully"})
 			}
 		}
 	})
