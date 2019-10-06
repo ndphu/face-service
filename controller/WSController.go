@@ -40,9 +40,7 @@ func WSController(r *gin.RouterGroup) {
 		} else {
 			wsId := uuid.New().String()
 			log.Println("[WS]", "Registering WS connection:", wsId)
-			wsLock.Lock()
 			wsMap[wsId] = conn
-			wsLock.Unlock()
 
 			conn.WriteJSON(WSMessage{
 				Code:    200,

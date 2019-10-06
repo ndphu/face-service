@@ -8,6 +8,7 @@ import (
 	"github.com/globalsign/mgo/bson"
 	"github.com/ndphu/swd-commons/model"
 	"github.com/ndphu/swd-commons/service"
+	"log"
 	"strconv"
 )
 
@@ -48,6 +49,12 @@ func DeviceController(r *gin.RouterGroup) {
 	r.GET("/device/:deviceId/startRecognize", func(c *gin.Context) {
 		user := auth.CurrentUser(c)
 		deviceId := c.Param("deviceId")
+		d := model.Device{}
+		if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId, "owner": user.Id}).One(&d); err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
 		totalPics := 12
 		if c.Query("totalPics") != "" {
 			if pic, err := strconv.Atoi(c.Query("totalPics")); err == nil && pic > 0 {
@@ -89,6 +96,22 @@ func DeviceController(r *gin.RouterGroup) {
 				c.JSON(200, result)
 			}
 		}
+	})
+	r.DELETE("/device/:deviceId", func(c *gin.Context) {
+		user := auth.CurrentUser(c)
+		deviceId := c.Param("deviceId")
+		d := model.Device{}
+		if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId, "owner": user.Id}).One(&d); err != nil {
+			log.Println("No permission to delete or device not exists")
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		if err := dao.Collection("device").RemoveId(d.Id); err != nil {
+			log.Println("Fail to delete device", d.Id, "by error", err)
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"message": "device deleted"})
 	})
 }
 
