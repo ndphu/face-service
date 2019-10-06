@@ -129,12 +129,12 @@ func (s *AuthService) CreateUserWithEmail(email string, password string, display
 		return nil, err
 	}
 
-	sendSlackNotification(&user)
+	sendSlackInvitation(&user)
 
 	return &user, err
 }
 
-func sendSlackNotification(u *User) {
+func sendSlackInvitation(u *User) {
 	log.Println("[SLACK]", "Sending slack invitation for user", u.Email)
 	sc := model.SlackConfig{
 		Id:             bson.NewObjectId(),
@@ -146,7 +146,7 @@ func sendSlackNotification(u *User) {
 		log.Println("[DB]", "Fail to insert slack_config for user:", u.Email)
 	} else {
 		if err := slack.SendSlackInvitation(u.Email); err != nil {
-			if err.Error() == "ALREADY_IN_TEAM_INVITED_USER" || err.Error() == "ALREADY_IN_TEAM" {
+			if err.Error() == "ALREADY_IN_TEAM" {
 				// user invited, just lookup the user
 				log.Println("[SLACK]", "User already in Slack Org, looking up existing User")
 				if slackUser, err := slack.LookupUserIdByEmail(u.Email); err != nil {
@@ -160,11 +160,17 @@ func sendSlackNotification(u *User) {
 						log.Println("[DB]", "Linked user:", u.Email, "with Slack user id", sc.SlackUserId)
 					}
 				}
-			} else {
-				sc.SentInvitation = true
-				if err := dao.Collection("slack_config").UpdateId(sc.Id, &sc); err != nil {
-					log.Println("[DB]", "Fail to update slack_config to set email sent to true for user:", u.Email)
+			} else if err.Error() == "ALREADY_IN_TEAM_INVITED_USER" {
+				if dao.Collection("slack_config").Update(bson.M{"userId": u.Id}, bson.M{"$set": bson.M{"sendInvitation": true}}); err != nil {
+					log.Println("[DB]", "Fail to update slack_config for user:", u.Email)
+				} else {
+					log.Println("[DB]", "Updated user:", u.Email, "set sendInvitation = true")
 				}
+			}
+		} else {
+			sc.SentInvitation = true
+			if err := dao.Collection("slack_config").UpdateId(sc.Id, &sc); err != nil {
+				log.Println("[DB]", "Fail to update slack_config to set email sent to true for user:", u.Email)
 			}
 		}
 	}
