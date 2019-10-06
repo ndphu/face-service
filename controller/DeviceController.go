@@ -15,7 +15,7 @@ import (
 func DeviceController(r *gin.RouterGroup) {
 	r.GET("/device/:deviceId", func(c *gin.Context) {
 		var device model.Device
-		if err := dao.Collection("device").Find(bson.M{"deviceId": c.Param("deviceId")}).One(&device); err != nil {
+		if err := dao.Collection("device").Find(bson.M{"_id": bson.ObjectIdHex(c.Param("deviceId"))}).One(&device); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(200, device)
@@ -23,34 +23,39 @@ func DeviceController(r *gin.RouterGroup) {
 	})
 
 	r.GET("/device/:deviceId/capture/live", func(c *gin.Context) {
-		deviceId := c.Param("deviceId")
 		var device model.Device
-		if err := dao.Collection("device").Find(bson.M{"deviceId": c.Param("deviceId")}).One(&device); err != nil {
+		if err := dao.Collection("device").Find(bson.M{"_id": bson.ObjectIdHex(c.Param("deviceId"))}).One(&device); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		} else {
-			service.ServeLiveStream(service.NewClientOpts(config.Get().MQTTBroker), deviceId, c)
+			service.ServeLiveStream(service.NewClientOpts(config.Get().MQTTBroker), device.DeviceId, c)
 		}
 	})
 
 	r.GET("/device/:deviceId/events", func(c *gin.Context) {
-		events := make([]model.Event, 0)
-		if err := dao.Collection("event").
-			Find(bson.M{"deviceId": c.Param("deviceId")}).
-			Sort("-timestamp").
-			Limit(50).All(&events);
-			err != nil {
+		user := auth.CurrentUser(c)
+		var device model.Device
+		if err := dao.Collection("device").Find(bson.M{"_id": bson.ObjectIdHex(c.Param("deviceId")), "owner": user.Id}).One(&device); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
+			return
 		} else {
-			c.JSON(200, events)
+			events := make([]model.Event, 0)
+			if err := dao.Collection("event").
+				Find(bson.M{"deviceId": device.DeviceId}).
+				Sort("-timestamp").
+				Limit(50).All(&events);
+				err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(200, events)
+			}
 		}
 	})
 
 	r.GET("/device/:deviceId/startRecognize", func(c *gin.Context) {
 		user := auth.CurrentUser(c)
-		deviceId := c.Param("deviceId")
 		d := model.Device{}
-		if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId, "owner": user.Id}).One(&d); err != nil {
+		if err := dao.Collection("device").Find(bson.M{"_id": bson.ObjectIdHex(c.Param("deviceId")), "owner": user.Id}).One(&d); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
@@ -69,12 +74,12 @@ func DeviceController(r *gin.RouterGroup) {
 		}
 
 		var device model.Device
-		if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId, "owner": user.Id}).One(&device); err != nil {
+		if err := dao.Collection("device").Find(bson.M{"_id": bson.ObjectIdHex(c.Param("deviceId")), "owner": user.Id}).One(&device); err != nil {
 			c.JSON(500, gin.H{"error": "device not exists"})
 			return
 		}
 
-		if frames, err := service.CaptureFrameContinuously(service.NewClientOpts(config.Get().MQTTBroker), deviceId, frameDelay, totalPics); err != nil {
+		if frames, err := service.CaptureFrameContinuously(service.NewClientOpts(config.Get().MQTTBroker), device.DeviceId, frameDelay, totalPics); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		} else {
@@ -99,9 +104,8 @@ func DeviceController(r *gin.RouterGroup) {
 	})
 	r.DELETE("/device/:deviceId", func(c *gin.Context) {
 		user := auth.CurrentUser(c)
-		deviceId := c.Param("deviceId")
 		d := model.Device{}
-		if err := dao.Collection("device").Find(bson.M{"deviceId": deviceId, "owner": user.Id}).One(&d); err != nil {
+		if err := dao.Collection("device").Find(bson.M{"_id": bson.ObjectIdHex(c.Param("deviceId")), "owner": user.Id}).One(&d); err != nil {
 			log.Println("No permission to delete or device not exists")
 			c.JSON(500, gin.H{"error": err.Error()})
 			return

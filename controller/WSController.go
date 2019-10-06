@@ -62,7 +62,6 @@ func WSController(r *gin.RouterGroup) {
 }
 
 func serveWebSocket(wsId string) {
-
 	defer func() {
 		log.Println("[WS]", "Stopped serving connection", wsId)
 	}()

@@ -97,6 +97,11 @@ func DeskController(r *gin.RouterGroup) {
 			}
 			device.Owner = auth.CurrentUser(c).Id
 
+			if device.Type == model.DeviceTypeWaterMonitor && device.DeviceId == "" {
+				c.JSON(400, gin.H{"error": "Should provide serial for water monitor device"})
+				return
+			}
+
 			if err := dao.Collection("device").Insert(&device); err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 			} else {
