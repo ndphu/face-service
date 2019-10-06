@@ -1,9 +1,13 @@
 package controller
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"face-service/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/globalsign/mgo/bson"
+	"log"
+	"os"
 )
 
 type RegisterInfo struct {
@@ -25,8 +29,18 @@ type UserInfo struct {
 	NoOfAccounts  int           `json:"noOfAccounts" bson:"noOfAccounts"`
 }
 
+var firebaseConfig FirebaseWebConfig
+
 func AuthController(r *gin.RouterGroup) {
 	authService, _ := auth.GetAuthService()
+
+
+	if wcnf, err := base64.StdEncoding.DecodeString(os.Getenv("FIREBASE_WEB_CONFIG")); err != nil {
+		log.Fatalln("Fail to parse firebase web config key FIREBASE_WEB_CONFIG", err)
+	} else if err := json.Unmarshal(wcnf, &firebaseConfig); err != nil {
+		log.Fatalln("Fail to unmarshal firebase web config key FIREBASE_WEB_CONFIG", err)
+	}
+
 	r.POST("/register", func(c *gin.Context) {
 		ri := RegisterInfo{}
 		err := c.ShouldBindJSON(&ri)
@@ -58,16 +72,7 @@ func AuthController(r *gin.RouterGroup) {
 	})
 
 	r.GET("/firebaseWebConfig", func(c *gin.Context) {
-		fwc := FirebaseWebConfig{
-			ApiKey:            "AIzaSyCYaqyIO0P8-0C8m9RWXTkxqhbTjewGdF4",
-			AuthDomain:        "smarter-working-desk.firebaseapp.com",
-			DatabaseURL:       "https://smarter-working-desk.firebaseio.com",
-			ProjectId:         "smarter-working-desk",
-			StorageBucket:     "",
-			MessagingSenderId: "400025784709",
-			AppId:             "1:400025784709:web:042335c7dd99918f85f4ec",
-		}
-		c.JSON(200, fwc)
+		c.JSON(200, firebaseConfig)
 	})
 }
 
